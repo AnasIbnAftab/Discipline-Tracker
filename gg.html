@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discipline Engine</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --accent: #38bdf8;
+            --win: #4ade80;
+            --loss: #f87171;
+            --text: #f1f5f9;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container { width: 100%; max-width: 450px; padding-bottom: 100px; }
+
+        /* Animation */
+        .content-section {
+            display: none;
+            opacity: 0;
+            transform: translateY(15px);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .content-section.active { display: block; opacity: 1; transform: translateY(0); }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 24px;
+            border-radius: 24px;
+            margin-bottom: 20px;
+        }
+
+        /* Log Viewer Styling */
+        .log-viewer {
+            margin-top: 20px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 15px;
+            padding: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+            border: 1px dashed rgba(255,255,255,0.1);
+        }
+
+        .log-entry {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .log-date { color: var(--accent); font-weight: bold; margin-right: 10px; }
+
+        /* Rest of UI */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 15px 0; }
+        .day { aspect-ratio: 1; border-radius: 8px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 11px; }
+        .won { background: var(--win) !important; color: #064e3b; box-shadow: 0 0 10px rgba(74, 222, 128, 0.3); }
+        .lost { background: var(--loss) !important; color: #7f1d1d; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        button { border: none; padding: 12px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button:active { transform: scale(0.96); }
+        .btn-win { background: var(--win); color: #064e3b; flex: 2; }
+        .btn-loss { background: var(--loss); color: #7f1d1d; flex: 1; }
+        
+        input, textarea { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 12px; width: 100%; box-sizing: border-box; margin-bottom: 8px; }
+
+        .bar-wrapper { display: flex; align-items: flex-end; height: 60px; gap: 4px; margin-top: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .bar { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; transition: height 0.5s; }
+
+        .nav-bar { position: fixed; bottom: 20px; width: calc(100% - 40px); max-width: 400px; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); padding: 12px; border-radius: 20px; display: flex; justify-content: space-around; }
+        .nav-item { color: #94a3b8; font-size: 11px; cursor: pointer; text-align: center; }
+        .nav-item.active { color: var(--accent); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+
+    <div id="fajar" class="content-section active">
+        <div class="card">
+            <h2>🕌 Fajr</h2>
+            <div class="btn-group">
+                <button class="btn-win" onclick="log('fajar', true)">PRAYED</button>
+                <button class="btn-loss" onclick="log('fajar', false)">MISSED</button>
+            </div>
+            <div id="cal-fajar" class="calendar-grid"></div>
+            <div class="bar-wrapper" id="graph-fajar"></div>
+        </div>
+    </div>
+
+    <div id="recovery" class="content-section">
+        <div class="card">
+            <h2>🌱 Recovery</h2>
+            <div class="btn-group">
+                <button class="btn-win" onclick="log('recovery', true)">STAYED CLEAN</button>
+                <button class="btn-loss" onclick="document.getElementById('rec-input').style.display='block'">FAILED</button>
+            </div>
+            <div id="rec-input" style="display:none; margin-top:15px;">
+                <textarea id="rec-sugg" placeholder="What was the trigger? Suggestion for next time..."></textarea>
+                <button class="btn-win" style="width:100%" onclick="log('recovery', false)">SAVE REFLECTION</button>
+            </div>
+            <div id="cal-recovery" class="calendar-grid"></div>
+            <div class="bar-wrapper" id="graph-recovery"></div>
+            
+            <h4>📜 Failure Insights</h4>
+            <div class="log-viewer" id="recovery-logs-view"></div>
+        </div>
+    </div>
+
+    <div id="jee" class="content-section">
+        <div class="card">
+            <h2>📚 JEE Prep</h2>
+            <input type="number" id="j-hrs" placeholder="Study Hours">
+            <input type="text" id="j-subs" placeholder="Subjects (e.g. Physics, Math)">
+            <button class="btn-win" style="width:100%" onclick="logJEE()">LOG DATA</button>
+            <div id="cal-jee" class="calendar-grid"></div>
+            <div class="bar-wrapper" id="graph-jee"></div>
+
+            <h4>📝 Study History</h4>
+            <div class="log-viewer" id="jee-logs-view"></div>
+        </div>
+    </div>
+
+    <nav class="nav-bar">
+        <div class="nav-item active" onclick="switchTab('fajar', this)">FAJAR</div>
+        <div class="nav-item" onclick="switchTab('recovery', this)">RECOVERY</div>
+        <div class="nav-item" onclick="switchTab('jee', this)">JEE</div>
+    </nav>
+</div>
+
+<script>
+    const startDay = 5, daysInFeb = 28;
+    let data = JSON.parse(localStorage.getItem('eliteTrackerV2')) || { fajar:{}, recovery:{}, jee:{}, logs:{ recovery:[], jee:[] } };
+
+    function switchTab(id, el) {
+        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        el.classList.add('active');
+    }
+
+    function init() {
+        ['fajar', 'recovery', 'jee'].forEach(s => renderUI(s));
+        updateLogViews();
+    }
+
+    function renderUI(s) {
+        const cal = document.getElementById(`cal-${s}`);
+        const graph = document.getElementById(`graph-${s}`);
+        cal.innerHTML = ''; graph.innerHTML = '';
+        for(let i=startDay; i<=daysInFeb; i++) {
+            const val = data[s][i];
+            const d = document.createElement('div');
+            d.className = 'day ' + (val === true ? 'won' : val === false ? 'lost' : '');
+            d.innerText = i;
+            cal.appendChild(d);
+
+            const b = document.createElement('div');
+            b.className = 'bar';
+            b.style.height = val === true ? '100%' : val === false ? '20%' : '4px';
+            if(val === false) b.style.background = 'var(--loss)';
+            graph.appendChild(b);
+        }
+    }
+
+    function log(sec, win) {
+        const day = new Date().getDate();
+        data[sec][day] = win;
+        if(sec === 'recovery' && !win) {
+            const text = document.getElementById('rec-sugg').value;
+            data.logs.recovery.unshift({ day, text });
+            document.getElementById('rec-input').style.display = 'none';
+        }
+        save();
+    }
+
+    function logJEE() {
+        const day = new Date().getDate();
+        const hrs = document.getElementById('j-hrs').value || 0;
+        const sub = document.getElementById('j-subs').value || "None";
+        data.jee[day] = hrs > 0;
+        data.logs.jee.unshift({ day, hrs, sub });
+        save();
+    }
+
+    function save() {
+        localStorage.setItem('eliteTrackerV2', JSON.stringify(data));
+        renderUI('fajar'); renderUI('recovery'); renderUI('jee');
+        updateLogViews();
+    }
+
+    function updateLogViews() {
+        const recView = document.getElementById('recovery-logs-view');
+        recView.innerHTML = data.logs.recovery.map(l => 
+            `<div class="log-entry"><span class="log-date">Feb ${l.day}:</span> <span>${l.text}</span></div>`).join('');
+        
+        const jeeView = document.getElementById('jee-logs-view');
+        jeeView.innerHTML = data.logs.jee.map(l => 
+            `<div class="log-entry"><span class="log-date">Feb ${l.day}:</span> <span>${l.hrs}h (${l.sub})</span></div>`).join('');
+    }
+
+    init();
+</script>
+</body>
+</html>
